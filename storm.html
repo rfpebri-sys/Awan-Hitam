@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>🌩️ Awan Cumulonimbus Bergetar</title>
+    <title>🌩️ 3D Storm - Complete Package</title>
     <style>
         * {
             margin: 0;
@@ -11,392 +11,672 @@
             box-sizing: border-box;
         }
         body {
+            overflow: hidden;
             background: #050510;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             font-family: 'Segoe UI', sans-serif;
-        }
-        .container {
-            background: #0a0a1a;
-            border-radius: 30px;
-            padding: 20px;
-            box-shadow: 0 0 80px rgba(0, 100, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.03);
         }
         canvas {
             display: block;
-            width: 700px;
-            height: 500px;
-            border-radius: 20px;
-            background: #0a0a18;
-            box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.8);
-            cursor: pointer;
         }
-        .caption {
-            color: rgba(255, 255, 255, 0.08);
-            text-align: center;
-            margin-top: 12px;
-            font-size: 0.65rem;
+
+        /* Flash overlay buat efek kilat */
+        #flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.03s ease-out;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: rgba(255, 255, 255, 0.06);
+            font-size: 0.6rem;
             letter-spacing: 3px;
             text-transform: uppercase;
+            text-align: center;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(4px);
         }
-        @media (max-width: 720px) {
-            canvas {
-                width: 100%;
-                height: auto;
-                aspect-ratio: 7/5;
+        #info i {
+            color: rgba(255, 255, 255, 0.1);
+        }
+
+        #clickHint {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            color: rgba(255, 255, 255, 0.08);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            pointer-events: none;
+            animation: pulseHint 4s ease-in-out infinite;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+        }
+        @keyframes pulseHint {
+            0%,
+            100% {
+                opacity: 0.2;
+                transform: translateX(-50%) scale(0.98);
             }
+            50% {
+                opacity: 0.7;
+                transform: translateX(-50%) scale(1.02);
+            }
+        }
+
+        /* Loading sederhana */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: #050510;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.05);
+            font-size: 0.8rem;
+            letter-spacing: 4px;
+            z-index: 1000;
+            transition: opacity 0.8s;
+        }
+        #loading.hide {
+            opacity: 0;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <canvas id="stormCanvas" width="700" height="500"></canvas>
-        <div class="caption">⚡ Klik untuk menyambar ⚡</div>
-    </div>
 
-    <script>
+    <div id="loading">🌩️ MEMUAT BADAI...</div>
+    <div id="flash"></div>
+    <div id="clickHint">⚡ KLIK UNTUK PETIR ⚡</div>
+    <div id="info"><i>🔄</i> GESER UNTUK PUTAR <i>🔊</i> SUARA AKTIF</div>
+
+    <!-- Import Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
         // ============================================================
-        // 1. SETUP CANVAS
+        // 1. IMPORTS
         // ============================================================
-        const canvas = document.getElementById('stormCanvas');
-        const ctx = canvas.getContext('2d');
-        const W = 700,
-            H = 500;
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         // ============================================================
-        // 2. STATE
+        // 2. SCENE SETUP
         // ============================================================
-        let time = 0;
-        let shakeAmount = 0;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050510);
+        scene.fog = new THREE.FogExp2(0x050510, 0.008); // Kabut!
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(14, 8, 18);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.3;
+        controls.target.set(0, 2.5, 0);
+        controls.maxPolarAngle = Math.PI / 2.1;
+        controls.minDistance = 4;
+        controls.maxDistance = 35;
+
+        // ============================================================
+        // 3. LIGHTING
+        // ============================================================
+        const ambientLight = new THREE.AmbientLight(0x223355, 0.25);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0x6688aa, 0.7);
+        dirLight.position.set(5, 12, 8);
+        scene.add(dirLight);
+
+        const rimLight = new THREE.DirectionalLight(0x445577, 0.3);
+        rimLight.position.set(-8, 4, -10);
+        scene.add(rimLight);
+
+        // ============================================================
+        // 4. AUDIO
+        // ============================================================
+        let audioCtx = null;
+        let audioEnabled = true;
+
+        function getAudioCtx() {
+            if (!audioCtx) {
+                try {
+                    audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+                } catch (e) { audioEnabled = false; }
+            }
+            return audioCtx;
+        }
+
+        function playThunder(intensity = 1) {
+            if (!audioEnabled) return;
+            try {
+                const ctx = getAudioCtx();
+                if (!ctx) return;
+                const duration = 1.2 + Math.random() * 0.8;
+                const bufferSize = ctx.sampleRate * duration;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    const env = Math.exp(-i / (ctx.sampleRate * 0.5));
+                    data[i] = (Math.random() * 2 - 1) * env * intensity * 0.5;
+                }
+                const noise = ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const osc = ctx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(80 + Math.random() * 40, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30 + Math.random() * 20, ctx.currentTime + duration * 0.8);
+
+                const gainNode = ctx.createGain();
+                gainNode.gain.setValueAtTime(0.7 * intensity, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 150 + Math.random() * 100;
+                filter.Q.value = 0.7;
+
+                noise.connect(filter);
+                osc.connect(filter);
+                filter.connect(gainNode);
+                gainNode.connect(ctx.destination);
+
+                noise.start(ctx.currentTime);
+                osc.start(ctx.currentTime);
+                noise.stop(ctx.currentTime + duration);
+                osc.stop(ctx.currentTime + duration);
+
+                // Gema
+                setTimeout(() => {
+                    if (Math.random() > 0.4) {
+                        try {
+                            const ctx2 = getAudioCtx();
+                            const buf2 = ctx2.createBuffer(1, ctx2.sampleRate * 0.5, ctx2.sampleRate);
+                            const d2 = buf2.getChannelData(0);
+                            for (let i = 0; i < d2.length; i++) {
+                                d2[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx2.sampleRate * 0.3)) * intensity * 0.25;
+                            }
+                            const n2 = ctx2.createBufferSource();
+                            n2.buffer = buf2;
+                            const g2 = ctx2.createGain();
+                            g2.gain.setValueAtTime(0.4 * intensity, ctx2.currentTime);
+                            g2.gain.exponentialRampToValueAtTime(0.01, ctx2.currentTime + 0.5);
+                            n2.connect(g2);
+                            g2.connect(ctx2.destination);
+                            n2.start(ctx2.currentTime);
+                            n2.stop(ctx2.currentTime + 0.5);
+                        } catch (e) {}
+                    }
+                }, 200 + Math.random() * 300);
+
+            } catch (e) { /* silent */ }
+        }
+
+        // ============================================================
+        // 5. KOTA 3D (GEDUNG-GEDUNG)
+        // ============================================================
+        const cityGroup = new THREE.Group();
+        scene.add(cityGroup);
+
+        const buildingMat = new THREE.MeshStandardMaterial({
+            color: 0x080812,
+            roughness: 1.0,
+            metalness: 0.0,
+        });
+
+        const windowMat = new THREE.MeshStandardMaterial({
+            color: 0xffdd88,
+            emissive: 0xffaa44,
+            emissiveIntensity: 0.15,
+        });
+
+        const windowMatDark = new THREE.MeshStandardMaterial({
+            color: 0x332200,
+            emissive: 0x221100,
+            emissiveIntensity: 0.02,
+        });
+
+        for (let i = 0; i < 120; i++) {
+            const w = 0.4 + Math.random() * 1.4;
+            const h = 0.8 + Math.random() * 5.5;
+            const d = 0.4 + Math.random() * 1.4;
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mesh = new THREE.Mesh(geo, buildingMat);
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 5 + Math.random() * 14;
+            mesh.position.set(
+                Math.cos(angle) * radius,
+                h / 2 - 1.0,
+                Math.sin(angle) * radius
+            );
+            mesh.rotation.y = Math.random() * Math.PI;
+            cityGroup.add(mesh);
+
+            // Jendela (beberapa menyala)
+            const windowCount = Math.floor(Math.random() * 6) + 2;
+            for (let j = 0; j < windowCount; j++) {
+                const win = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.06, 0.08, 0.02),
+                    Math.random() > 0.4 ? windowMat : windowMatDark
+                );
+                const wx = (Math.random() - 0.5) * w * 0.8;
+                const wy = (Math.random() - 0.5) * h * 0.8;
+                const wz = (Math.random() > 0.5 ? 1 : -1) * d * 0.51;
+                win.position.set(wx, wy, wz);
+                // Rotasi jendela menghadap keluar
+                if (wz > 0) win.rotation.y = 0;
+                else win.rotation.y = Math.PI;
+                mesh.add(win);
+            }
+        }
+
+        // ============================================================
+        // 6. AWAN CUMULONIMBUS 3D
+        // ============================================================
+        const cloudGroup = new THREE.Group();
+        scene.add(cloudGroup);
+
+        const cloudMat = new THREE.MeshStandardMaterial({
+            color: 0x0a0a12,
+            roughness: 0.9,
+            metalness: 0.0,
+            emissive: 0x000000,
+            emissiveIntensity: 0,
+        });
+        const cloudMatLight = new THREE.MeshStandardMaterial({
+            color: 0x141425,
+            roughness: 0.8,
+            metalness: 0.0,
+            emissive: 0x000000,
+            emissiveIntensity: 0,
+        });
+        const cloudMatDark = new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            roughness: 1.0,
+            metalness: 0.0,
+        });
+
+        function addSphere(x, y, z, sx, sy, sz, mat = cloudMat) {
+            const geo = new THREE.SphereGeometry(1, 14, 14);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            mesh.scale.set(sx, sy, sz);
+            cloudGroup.add(mesh);
+            return mesh;
+        }
+
+        // Lapisan bawah
+        addSphere(-2.8, 0.4, 0, 3.8, 1.8, 3.0);
+        addSphere(2.8, 0.4, 0, 3.8, 1.8, 3.0);
+        addSphere(0, 0.6, 0.6, 5.0, 2.0, 3.5);
+        addSphere(0, 0.6, -0.6, 5.0, 2.0, 3.5);
+
+        // Lapisan tengah
+        addSphere(-2.0, 2.2, 0, 3.2, 2.2, 2.8, cloudMatLight);
+        addSphere(2.0, 2.2, 0, 3.2, 2.2, 2.8, cloudMatLight);
+        addSphere(0, 2.6, 0.4, 4.2, 2.6, 3.4, cloudMatLight);
+        addSphere(0, 2.6, -0.4, 4.2, 2.6, 3.4, cloudMatLight);
+
+        // Puncak
+        addSphere(-1.2, 4.4, 0, 2.4, 2.2, 2.0, cloudMatLight);
+        addSphere(1.2, 4.4, 0, 2.4, 2.2, 2.0, cloudMatLight);
+        addSphere(0, 5.0, 0, 3.0, 2.6, 2.4, cloudMatLight);
+
+        // Puncak atas
+        addSphere(0, 6.4, 0, 2.0, 1.4, 1.8, cloudMatLight);
+        addSphere(-0.8, 7.0, 0.5, 1.2, 1.0, 1.2, cloudMatLight);
+        addSphere(0.8, 7.0, -0.5, 1.2, 1.0, 1.2, cloudMatLight);
+
+        // Detail internal gelap
+        addSphere(-1.0, 1.2, 0.4, 1.2, 0.8, 1.0, cloudMatDark);
+        addSphere(1.0, 1.2, -0.4, 1.2, 0.8, 1.0, cloudMatDark);
+        addSphere(0, 3.8, 0.6, 1.4, 1.0, 1.2, cloudMatDark);
+
+        // Kumpulkan mesh untuk glow
+        const cloudMeshes = [];
+        cloudGroup.children.forEach(c => { if (c.isMesh) cloudMeshes.push(c); });
+
+        // ============================================================
+        // 7. PETIR 3D
+        // ============================================================
+        let lightningGroup = new THREE.Group();
+        scene.add(lightningGroup);
         let lightningFlash = 0;
         let lightningAlpha = 0;
-        let isThundering = false;
 
-        // ============================================================
-        // 3. GAMBAR AWAN CUMULONIMBUS (PATH COMPLEX)
-        // ============================================================
-        function drawCloud(ctx, x, y, scale = 1, shakeX = 0, shakeY = 0) {
-            ctx.save();
-            ctx.translate(x + shakeX, y + shakeY);
-            ctx.scale(scale, scale);
+        // Flash overlay (dari HTML)
+        const flashEl = document.getElementById('flash');
 
-            // --- Bayangan bawah ---
-            const grad = ctx.createRadialGradient(0, 60, 20, 0, 80, 160);
-            grad.addColorStop(0, 'rgba(10,10,30,0.6)');
-            grad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.ellipse(0, 80, 220, 40, 0, 0, Math.PI * 2);
-            ctx.fill();
+        function createBolt(start, end, segs = 12, branches = 3) {
+            const group = new THREE.Group();
 
-            // --- Awan utama (hitam pekat dengan tekstur) ---
-            // Base cloud – bentuk cumulonimbus yang menjulang
-            ctx.shadowColor = 'rgba(0,0,0,0.8)';
-            ctx.shadowBlur = 40;
-
-            // Lapisan bawah (lebar)
-            ctx.fillStyle = '#0a0a12';
-            ctx.beginPath();
-            ctx.ellipse(-80, 40, 100, 55, -0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(80, 40, 100, 55, 0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(0, 50, 130, 60, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Lapisan tengah (badan menjulang)
-            ctx.fillStyle = '#0d0d1a';
-            ctx.beginPath();
-            ctx.ellipse(-40, -10, 80, 60, -0.15, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(40, -10, 80, 60, 0.15, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 100, 75, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Puncak (menara cumulonimbus)
-            ctx.fillStyle = '#0f0f1f';
-            ctx.beginPath();
-            ctx.ellipse(-25, -50, 55, 50, -0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(25, -50, 55, 50, 0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(0, -65, 60, 55, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Puncak atas (landasan)
-            ctx.fillStyle = '#121222';
-            ctx.beginPath();
-            ctx.ellipse(0, -85, 35, 30, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(-15, -95, 25, 20, -0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(15, -95, 25, 20, 0.1, 0, Math.PI * 2);
-            ctx.fill();
-
-            // --- Detail tekstur gelap (bayangan dalam) ---
-            ctx.shadowBlur = 10;
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath();
-            ctx.ellipse(-30, 10, 40, 30, -0.2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(30, 10, 40, 30, 0.2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(0, -30, 50, 35, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // --- Highlight ujung awan (efek 3D) ---
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(30,30,50,0.15)';
-            ctx.beginPath();
-            ctx.ellipse(-10, -70, 25, 15, -0.1, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(10, -70, 25, 15, 0.1, 0, Math.PI * 2);
-            ctx.fill();
-
-            // --- Kilauan petir di dalam awan (efek glow) ---
-            if (lightningAlpha > 0.05) {
-                ctx.shadowColor = `rgba(200,220,255,${lightningAlpha * 0.3})`;
-                ctx.shadowBlur = 80;
-                ctx.fillStyle = `rgba(180,200,255,${lightningAlpha * 0.08})`;
-                ctx.beginPath();
-                ctx.ellipse(0, -20, 120, 80, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            }
-
-            ctx.restore();
-        }
-
-        // ============================================================
-        // 4. GAMBAR PETIR (ZIGZAG DENGAN CABANG)
-        // ============================================================
-        function drawLightning(ctx, x1, y1, x2, y2, alpha = 1, branch = true) {
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.shadowColor = `rgba(200,220,255,${alpha * 0.6})`;
-            ctx.shadowBlur = 30;
-            ctx.strokeStyle = `rgba(220,240,255,${alpha})`;
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            // Path zigzag utama
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            let x = x1,
-                y = y1;
-            const segments = 8 + Math.floor(Math.random() * 6);
-            const dx = (x2 - x1) / segments;
-            const dy = (y2 - y1) / segments;
-            for (let i = 0; i < segments; i++) {
-                const xOff = (Math.random() - 0.5) * 30;
-                const yOff = (Math.random() - 0.5) * 20;
-                x += dx + xOff * 0.5;
-                y += dy + yOff * 0.5;
-                ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            // Cabang (random)
-            if (branch) {
-                for (let i = 0; i < 3; i++) {
-                    const t = 0.2 + Math.random() * 0.6;
-                    const idx = Math.floor(t * segments);
-                    const cx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 20;
-                    const cy = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 15;
-                    const endX = cx + (Math.random() - 0.5) * 80;
-                    const endY = cy + 40 + Math.random() * 80;
-
-                    ctx.shadowBlur = 15;
-                    ctx.lineWidth = 1.5;
-                    ctx.globalAlpha = alpha * (0.4 + Math.random() * 0.3);
-                    ctx.beginPath();
-                    ctx.moveTo(cx, cy);
-                    let bx = cx,
-                        by = cy;
-                    const bSeg = 3 + Math.floor(Math.random() * 4);
-                    const bDx = (endX - cx) / bSeg;
-                    const bDy = (endY - cy) / bSeg;
-                    for (let j = 0; j < bSeg; j++) {
-                        bx += bDx + (Math.random() - 0.5) * 15;
-                        by += bDy + (Math.random() - 0.5) * 15;
-                        ctx.lineTo(bx, by);
-                    }
-                    ctx.stroke();
+            function makeLine(p1, p2, s) {
+                const pts = [];
+                pts.push(p1.clone());
+                const dx = (p2.x - p1.x) / s;
+                const dy = (p2.y - p1.y) / s;
+                const dz = (p2.z - p1.z) / s;
+                let cur = p1.clone();
+                for (let i = 1; i < s; i++) {
+                    const t = i / s;
+                    const off = 0.8 * (1 - t * t);
+                    cur.x = p1.x + dx * i + (Math.random() - 0.5) * off * 3.0;
+                    cur.y = p1.y + dy * i + (Math.random() - 0.5) * off * 2.0;
+                    cur.z = p1.z + dz * i + (Math.random() - 0.5) * off * 2.0;
+                    pts.push(cur.clone());
                 }
+                pts.push(p2.clone());
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                const mat = new THREE.LineBasicMaterial({
+                    color: 0xccddff,
+                    transparent: true,
+                    opacity: 1,
+                });
+                return new THREE.Line(geo, mat);
             }
 
-            ctx.restore();
+            const main = makeLine(start, end, segs);
+            group.add(main);
+
+            for (let i = 0; i < branches; i++) {
+                const t = 0.2 + Math.random() * 0.6;
+                const mid = new THREE.Vector3().lerpVectors(start, end, t);
+                mid.x += (Math.random() - 0.5) * 2.0;
+                mid.y += (Math.random() - 0.5) * 1.5;
+                mid.z += (Math.random() - 0.5) * 2.0;
+                const e2 = new THREE.Vector3(
+                    mid.x + (Math.random() - 0.5) * 5,
+                    mid.y + 1 + Math.random() * 4,
+                    mid.z + (Math.random() - 0.5) * 4
+                );
+                const br = makeLine(mid, e2, 4 + Math.floor(Math.random() * 4));
+                group.add(br);
+            }
+            return group;
         }
 
         // ============================================================
-        // 5. ANIMASI UTAMA
+        // 8. HUJAN 3D + ANGIN
+        // ============================================================
+        const RAIN_COUNT = 3000;
+        const rainPos = new Float32Array(RAIN_COUNT * 3);
+        const rainSpd = new Float32Array(RAIN_COUNT);
+        const rainArea = { x: 28, z: 28, y: 18 };
+
+        for (let i = 0; i < RAIN_COUNT; i++) {
+            rainPos[i * 3] = (Math.random() - 0.5) * rainArea.x;
+            rainPos[i * 3 + 1] = Math.random() * rainArea.y;
+            rainPos[i * 3 + 2] = (Math.random() - 0.5) * rainArea.z;
+            rainSpd[i] = 5 + Math.random() * 10;
+        }
+        const rainGeo = new THREE.BufferGeometry();
+        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+        const rainMat = new THREE.PointsMaterial({
+            color: 0x7799cc,
+            size: 0.06,
+            transparent: true,
+            opacity: 0.25,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        const rainSystem = new THREE.Points(rainGeo, rainMat);
+        scene.add(rainSystem);
+
+        // ============================================================
+        // 9. STATE
+        // ============================================================
+        let shakeAmount = 0;
+        let windForce = 0.3;
+        let clock = new THREE.Clock();
+
+        // ============================================================
+        // 10. STRIKE LIGHTNING (FULL PAKET)
+        // ============================================================
+        function strikeLightning() {
+            // Hapus petir lama
+            while (lightningGroup.children.length) {
+                lightningGroup.remove(lightningGroup.children[0]);
+            }
+
+            // Buat 2-4 petir sekaligus
+            const boltCount = 2 + Math.floor(Math.random() * 3);
+            for (let b = 0; b < boltCount; b++) {
+                const sx = (Math.random() - 0.5) * 5;
+                const sy = 7 + Math.random() * 2.5;
+                const sz = (Math.random() - 0.5) * 4;
+                const start = new THREE.Vector3(sx, sy, sz);
+
+                const ex = (Math.random() - 0.5) * 14;
+                const ey = -1 + Math.random() * 2;
+                const ez = (Math.random() - 0.5) * 10;
+                const end = new THREE.Vector3(ex, ey, ez);
+
+                const bolt = createBolt(start, end, 10 + Math.floor(Math.random() * 6), 3 + Math.floor(Math.random() * 3));
+                lightningGroup.add(bolt);
+            }
+
+            // Flash overlay (kilatan)
+            flashEl.style.opacity = 0.6 + Math.random() * 0.3;
+            setTimeout(() => { flashEl.style.opacity = 0.3; }, 50);
+            setTimeout(() => { flashEl.style.opacity = 0.1; }, 120);
+            setTimeout(() => { flashEl.style.opacity = 0; }, 250);
+
+            // Intensitas acak
+            const intensity = 0.5 + Math.random() * 0.5;
+            lightningFlash = 1.0;
+            shakeAmount = 4 + Math.random() * 3;
+
+            // Suara
+            playThunder(intensity);
+
+            // Redam getar
+            setTimeout(() => { shakeAmount = 2.5; }, 100);
+            setTimeout(() => { shakeAmount = 1.0; }, 300);
+            setTimeout(() => { shakeAmount = 0.3; }, 600);
+
+            // Petir susulan (setelah 0.5-1 detik)
+            setTimeout(() => {
+                if (Math.random() > 0.4) {
+                    flashEl.style.opacity = 0.4;
+                    setTimeout(() => { flashEl.style.opacity = 0; }, 150);
+                    playThunder(intensity * 0.5);
+                    shakeAmount = 2.0;
+                    // Tambah satu petir lagi
+                    const s2 = new THREE.Vector3(
+                        (Math.random() - 0.5) * 6, 7 + Math.random() * 2, (Math.random() - 0.5) * 5
+                    );
+                    const e2 = new THREE.Vector3(
+                        (Math.random() - 0.5) * 16, -1 + Math.random() * 2, (Math.random() - 0.5) * 12
+                    );
+                    const bolt2 = createBolt(s2, e2, 8, 2);
+                    lightningGroup.add(bolt2);
+                    setTimeout(() => { shakeAmount = 0.5; }, 300);
+                }
+            }, 500 + Math.random() * 600);
+
+            // Hapus petir setelah 2.5 detik
+            setTimeout(() => {
+                while (lightningGroup.children.length) {
+                    lightningGroup.remove(lightningGroup.children[0]);
+                }
+            }, 2500);
+        }
+
+        // ============================================================
+        // 11. ANIMASI LOOP
         // ============================================================
         function animate() {
-            time += 0.02;
+            const delta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
 
-            // --- Shake (bergetar) ---
-            // Semakin besar shakeAmount, semakin kencang getar
-            const shakeX = (Math.random() - 0.5) * shakeAmount * 2;
-            const shakeY = (Math.random() - 0.5) * shakeAmount * 2;
+            // --- Angin (berubah-ubah) ---
+            windForce = 0.4 + Math.sin(elapsed * 0.15) * 0.3 + Math.sin(elapsed * 0.37 + 1.2) * 0.15;
+            if (shakeAmount > 1) windForce += 0.3; // angin kencang saat badai
 
-            // --- Flash petir (fade out cepat) ---
+            // --- Update hujan ---
+            const pos = rainSystem.geometry.attributes.position.array;
+            for (let i = 0; i < RAIN_COUNT; i++) {
+                pos[i * 3 + 1] -= rainSpd[i] * delta * 2.0;
+                pos[i * 3] += windForce * delta * 1.5; // efek angin
+                if (pos[i * 3 + 1] < -2) {
+                    pos[i * 3 + 1] = rainArea.y + Math.random() * 3;
+                    pos[i * 3] = (Math.random() - 0.5) * rainArea.x;
+                    pos[i * 3 + 2] = (Math.random() - 0.5) * rainArea.z;
+                }
+            }
+            rainSystem.geometry.attributes.position.needsUpdate = true;
+
+            // --- Update flash & alpha ---
             if (lightningFlash > 0) {
-                lightningFlash -= 0.025;
+                lightningFlash -= delta * 1.8;
                 if (lightningFlash < 0) lightningFlash = 0;
                 lightningAlpha = Math.min(lightningFlash * 1.2, 1);
             } else {
-                lightningAlpha *= 0.98;
+                lightningAlpha *= 0.97;
                 if (lightningAlpha < 0.001) lightningAlpha = 0;
             }
 
-            // --- Gambar ---
-            ctx.clearRect(0, 0, W, H);
-
-            // Background malam
-            const bgGrad = ctx.createRadialGradient(W / 2, 0, 100, W / 2, 0, 500);
-            bgGrad.addColorStop(0, '#0f0f2a');
-            bgGrad.addColorStop(0.5, '#080818');
-            bgGrad.addColorStop(1, '#020208');
-            ctx.fillStyle = bgGrad;
-            ctx.fillRect(0, 0, W, H);
-
-            // Bintang redup
-            ctx.fillStyle = 'rgba(255,255,255,0.03)';
-            for (let i = 0; i < 60; i++) {
-                const x = (i * 137.5 + 42) % W;
-                const y = (i * 97.3 + 13) % (H * 0.6);
-                const s = 0.5 + (i % 3) * 0.5;
-                ctx.beginPath();
-                ctx.arc(x, y, s, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // --- GAMBAR AWAN (dengan getaran) ---
-            // Posisi awan di tengah bawah
-            const cloudX = W / 2;
-            const cloudY = 200;
-            // Skala agak besar
-            const scale = 1.1 + Math.sin(time * 0.2) * 0.02;
-
-            // Gambar awan dengan efek shake
-            drawCloud(ctx, cloudX, cloudY, scale, shakeX * 0.8, shakeY * 0.8);
-
-            // --- GAMBAR PETIR (jika flash aktif) ---
-            if (lightningAlpha > 0.02) {
-                // Petir utama dari puncak awan ke bawah
-                const startX = cloudX + (Math.random() - 0.5) * 40;
-                const startY = cloudY - 120 + (Math.random() - 0.5) * 20;
-                const endX = cloudX + (Math.random() - 0.5) * 120;
-                const endY = cloudY + 180 + Math.random() * 40;
-
-                drawLightning(ctx, startX, startY, endX, endY, lightningAlpha, true);
-
-                // Petir kedua (cabang lebih kecil)
-                if (Math.random() > 0.4) {
-                    const sX = cloudX + (Math.random() - 0.5) * 60;
-                    const sY = cloudY - 90 + (Math.random() - 0.5) * 20;
-                    const eX = cloudX + (Math.random() - 0.5) * 150;
-                    const eY = cloudY + 160 + Math.random() * 30;
-                    drawLightning(ctx, sX, sY, eX, eY, lightningAlpha * 0.6, false);
+            // --- Glow awan (internal lightning) ---
+            const glowIntensity = lightningAlpha * 0.2 + 0.02 * (1 + Math.sin(elapsed * 1.7));
+            cloudMeshes.forEach(mesh => {
+                if (mesh.material) {
+                    mesh.material.emissive.setHex(0x446688);
+                    mesh.material.emissiveIntensity = glowIntensity;
                 }
+            });
 
-                // Siluet awan kena flash
-                ctx.save();
-                ctx.globalAlpha = lightningAlpha * 0.08;
-                ctx.fillStyle = '#aaccff';
-                ctx.fillRect(0, 0, W, H);
-                ctx.restore();
-            }
+            // --- Opacity petir ---
+            lightningGroup.children.forEach(child => {
+                if (child.type === 'Group') {
+                    child.children.forEach(line => {
+                        if (line.isLine) {
+                            line.material.opacity = Math.min(lightningAlpha * 1.3, 1);
+                        }
+                    });
+                }
+            });
 
-            // --- Efek getar pada awan (glow getar) ---
-            if (shakeAmount > 0.5) {
-                ctx.save();
-                ctx.globalAlpha = 0.03 * shakeAmount;
-                ctx.shadowColor = 'rgba(100,150,255,0.1)';
-                ctx.shadowBlur = 60;
-                ctx.fillStyle = '#4466aa';
-                ctx.beginPath();
-                ctx.ellipse(cloudX, cloudY, 200, 140, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-
-            // --- Update shake (getar berangsur redam) ---
-            if (shakeAmount > 0) {
-                shakeAmount *= 0.995;
-                if (shakeAmount < 0.01) shakeAmount = 0;
+            // --- Getaran (shake) ---
+            if (shakeAmount > 0.01) {
+                const shX = (Math.random() - 0.5) * shakeAmount * 0.1;
+                const shY = (Math.random() - 0.5) * shakeAmount * 0.1;
+                const shZ = (Math.random() - 0.5) * shakeAmount * 0.1;
+                cloudGroup.position.set(shX, shY, shZ);
+                rainSystem.position.x = shX * 0.2;
+                rainSystem.position.z = shZ * 0.2;
             } else {
-                // Getar minimal alami (seperti awan bergetar sendiri)
-                shakeAmount = 0.2 + Math.sin(time * 3.7) * 0.1 + Math.sin(time * 5.1 + 1.2) * 0.08;
+                cloudGroup.position.set(0, 0, 0);
+                rainSystem.position.x = 0;
+                rainSystem.position.z = 0;
+            }
+            if (shakeAmount > 0) {
+                shakeAmount *= 0.993;
+                if (shakeAmount < 0.005) shakeAmount = 0;
+            } else {
+                shakeAmount = 0.05 + Math.sin(elapsed * 3.1) * 0.02 + Math.sin(elapsed * 5.3 + 1.7) * 0.015;
             }
 
+            // --- Animasi kota (lampu berkedip) ---
+            cityGroup.children.forEach((building, idx) => {
+                building.children.forEach(child => {
+                    if (child.isMesh && child.material && child.material.emissiveIntensity !== undefined) {
+                        // Kedip random
+                        const flicker = 0.5 + 0.5 * Math.sin(elapsed * (1.2 + idx * 0.1) + child.id);
+                        child.material.emissiveIntensity = 0.05 + flicker * 0.2;
+                    }
+                });
+            });
+
+            // --- Update controls & render ---
+            controls.update();
+            renderer.render(scene, camera);
             requestAnimationFrame(animate);
         }
 
-        // ============================================================
-        // 6. TRIGGER PETIR (klik atau random)
-        // ============================================================
-        function strikeLightning() {
-            lightningFlash = 1.0;
-            shakeAmount = 3.5 + Math.random() * 2;
-            // Efek getar langsung
-            setTimeout(() => {
-                shakeAmount = 2.0;
-            }, 100);
-            setTimeout(() => {
-                shakeAmount = 0.8;
-            }, 300);
-
-            // Petir kedua menyusul
-            setTimeout(() => {
-                if (Math.random() > 0.5) {
-                    lightningFlash = 0.7;
-                    shakeAmount = 2.5;
-                }
-            }, 200 + Math.random() * 300);
-        }
-
-        // ============================================================
-        // 7. EVENT LISTENER
-        // ============================================================
-        canvas.addEventListener('click', (e) => {
-            strikeLightning();
-            // Efek tambahan: getar di posisi klik (opsional)
-        });
-
-        // Petir random tiap 5-10 detik
-        setInterval(() => {
-            if (Math.random() > 0.5) {
-                strikeLightning();
-            }
-        }, 6000 + Math.random() * 5000);
-
-        // ============================================================
-        // 8. START ANIMASI
-        // ============================================================
         animate();
 
-        // Trigger awal
-        setTimeout(strikeLightning, 800);
+        // ============================================================
+        // 12. INTERAKSI
+        // ============================================================
+        renderer.domElement.addEventListener('click', (e) => {
+            strikeLightning();
+        });
 
-        console.log('🌩️ Awan Cumulonimbus Bergetar - Siap!');
+        // Aktifkan audio saat pertama kali interaksi
+        renderer.domElement.addEventListener('click', () => {
+            getAudioCtx();
+        }, { once: true });
+
+        // ============================================================
+        // 13. RESIZE
+        // ============================================================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ============================================================
+        // 14. RANDOM STORM
+        // ============================================================
+        setInterval(() => {
+            if (Math.random() > 0.45) {
+                strikeLightning();
+            }
+        }, 7000 + Math.random() * 7000);
+
+        // ============================================================
+        // 15. START
+        // ============================================================
+        setTimeout(() => {
+            document.getElementById('loading').classList.add('hide');
+        }, 500);
+
+        setTimeout(strikeLightning, 1200);
+        setTimeout(strikeLightning, 3000);
+
+        console.log('🌩️ 3D COMPLETE STORM PACKAGE ACTIVATED!');
         console.log('💡 Klik layar untuk petir!');
+        console.log('🔄 Geser untuk putar kamera!');
+        console.log('🏙️ Kota 3D + Kabut + Hujan + Suara!');
     </script>
 </body>
-</html>
+    </html>

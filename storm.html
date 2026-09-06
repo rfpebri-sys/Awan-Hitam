@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌩️ Awan Cumulonimbus Bergetar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #050510;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .container {
+            background: #0a0a1a;
+            border-radius: 30px;
+            padding: 20px;
+            box-shadow: 0 0 80px rgba(0, 100, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        canvas {
+            display: block;
+            width: 700px;
+            height: 500px;
+            border-radius: 20px;
+            background: #0a0a18;
+            box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.8);
+            cursor: pointer;
+        }
+        .caption {
+            color: rgba(255, 255, 255, 0.08);
+            text-align: center;
+            margin-top: 12px;
+            font-size: 0.65rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        @media (max-width: 720px) {
+            canvas {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 7/5;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="stormCanvas" width="700" height="500"></canvas>
+        <div class="caption">⚡ Klik untuk menyambar ⚡</div>
+    </div>
+
+    <script>
+        // ============================================================
+        // 1. SETUP CANVAS
+        // ============================================================
+        const canvas = document.getElementById('stormCanvas');
+        const ctx = canvas.getContext('2d');
+        const W = 700,
+            H = 500;
+
+        // ============================================================
+        // 2. STATE
+        // ============================================================
+        let time = 0;
+        let shakeAmount = 0;
+        let lightningFlash = 0;
+        let lightningAlpha = 0;
+        let isThundering = false;
+
+        // ============================================================
+        // 3. GAMBAR AWAN CUMULONIMBUS (PATH COMPLEX)
+        // ============================================================
+        function drawCloud(ctx, x, y, scale = 1, shakeX = 0, shakeY = 0) {
+            ctx.save();
+            ctx.translate(x + shakeX, y + shakeY);
+            ctx.scale(scale, scale);
+
+            // --- Bayangan bawah ---
+            const grad = ctx.createRadialGradient(0, 60, 20, 0, 80, 160);
+            grad.addColorStop(0, 'rgba(10,10,30,0.6)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.ellipse(0, 80, 220, 40, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // --- Awan utama (hitam pekat dengan tekstur) ---
+            // Base cloud – bentuk cumulonimbus yang menjulang
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowBlur = 40;
+
+            // Lapisan bawah (lebar)
+            ctx.fillStyle = '#0a0a12';
+            ctx.beginPath();
+            ctx.ellipse(-80, 40, 100, 55, -0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(80, 40, 100, 55, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(0, 50, 130, 60, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Lapisan tengah (badan menjulang)
+            ctx.fillStyle = '#0d0d1a';
+            ctx.beginPath();
+            ctx.ellipse(-40, -10, 80, 60, -0.15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(40, -10, 80, 60, 0.15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 100, 75, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Puncak (menara cumulonimbus)
+            ctx.fillStyle = '#0f0f1f';
+            ctx.beginPath();
+            ctx.ellipse(-25, -50, 55, 50, -0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(25, -50, 55, 50, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(0, -65, 60, 55, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Puncak atas (landasan)
+            ctx.fillStyle = '#121222';
+            ctx.beginPath();
+            ctx.ellipse(0, -85, 35, 30, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-15, -95, 25, 20, -0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(15, -95, 25, 20, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // --- Detail tekstur gelap (bayangan dalam) ---
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(-30, 10, 40, 30, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(30, 10, 40, 30, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(0, -30, 50, 35, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // --- Highlight ujung awan (efek 3D) ---
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(30,30,50,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(-10, -70, 25, 15, -0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(10, -70, 25, 15, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // --- Kilauan petir di dalam awan (efek glow) ---
+            if (lightningAlpha > 0.05) {
+                ctx.shadowColor = `rgba(200,220,255,${lightningAlpha * 0.3})`;
+                ctx.shadowBlur = 80;
+                ctx.fillStyle = `rgba(180,200,255,${lightningAlpha * 0.08})`;
+                ctx.beginPath();
+                ctx.ellipse(0, -20, 120, 80, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.restore();
+        }
+
+        // ============================================================
+        // 4. GAMBAR PETIR (ZIGZAG DENGAN CABANG)
+        // ============================================================
+        function drawLightning(ctx, x1, y1, x2, y2, alpha = 1, branch = true) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.shadowColor = `rgba(200,220,255,${alpha * 0.6})`;
+            ctx.shadowBlur = 30;
+            ctx.strokeStyle = `rgba(220,240,255,${alpha})`;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Path zigzag utama
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            let x = x1,
+                y = y1;
+            const segments = 8 + Math.floor(Math.random() * 6);
+            const dx = (x2 - x1) / segments;
+            const dy = (y2 - y1) / segments;
+            for (let i = 0; i < segments; i++) {
+                const xOff = (Math.random() - 0.5) * 30;
+                const yOff = (Math.random() - 0.5) * 20;
+                x += dx + xOff * 0.5;
+                y += dy + yOff * 0.5;
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Cabang (random)
+            if (branch) {
+                for (let i = 0; i < 3; i++) {
+                    const t = 0.2 + Math.random() * 0.6;
+                    const idx = Math.floor(t * segments);
+                    const cx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 20;
+                    const cy = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 15;
+                    const endX = cx + (Math.random() - 0.5) * 80;
+                    const endY = cy + 40 + Math.random() * 80;
+
+                    ctx.shadowBlur = 15;
+                    ctx.lineWidth = 1.5;
+                    ctx.globalAlpha = alpha * (0.4 + Math.random() * 0.3);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    let bx = cx,
+                        by = cy;
+                    const bSeg = 3 + Math.floor(Math.random() * 4);
+                    const bDx = (endX - cx) / bSeg;
+                    const bDy = (endY - cy) / bSeg;
+                    for (let j = 0; j < bSeg; j++) {
+                        bx += bDx + (Math.random() - 0.5) * 15;
+                        by += bDy + (Math.random() - 0.5) * 15;
+                        ctx.lineTo(bx, by);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // ============================================================
+        // 5. ANIMASI UTAMA
+        // ============================================================
+        function animate() {
+            time += 0.02;
+
+            // --- Shake (bergetar) ---
+            // Semakin besar shakeAmount, semakin kencang getar
+            const shakeX = (Math.random() - 0.5) * shakeAmount * 2;
+            const shakeY = (Math.random() - 0.5) * shakeAmount * 2;
+
+            // --- Flash petir (fade out cepat) ---
+            if (lightningFlash > 0) {
+                lightningFlash -= 0.025;
+                if (lightningFlash < 0) lightningFlash = 0;
+                lightningAlpha = Math.min(lightningFlash * 1.2, 1);
+            } else {
+                lightningAlpha *= 0.98;
+                if (lightningAlpha < 0.001) lightningAlpha = 0;
+            }
+
+            // --- Gambar ---
+            ctx.clearRect(0, 0, W, H);
+
+            // Background malam
+            const bgGrad = ctx.createRadialGradient(W / 2, 0, 100, W / 2, 0, 500);
+            bgGrad.addColorStop(0, '#0f0f2a');
+            bgGrad.addColorStop(0.5, '#080818');
+            bgGrad.addColorStop(1, '#020208');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Bintang redup
+            ctx.fillStyle = 'rgba(255,255,255,0.03)';
+            for (let i = 0; i < 60; i++) {
+                const x = (i * 137.5 + 42) % W;
+                const y = (i * 97.3 + 13) % (H * 0.6);
+                const s = 0.5 + (i % 3) * 0.5;
+                ctx.beginPath();
+                ctx.arc(x, y, s, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // --- GAMBAR AWAN (dengan getaran) ---
+            // Posisi awan di tengah bawah
+            const cloudX = W / 2;
+            const cloudY = 200;
+            // Skala agak besar
+            const scale = 1.1 + Math.sin(time * 0.2) * 0.02;
+
+            // Gambar awan dengan efek shake
+            drawCloud(ctx, cloudX, cloudY, scale, shakeX * 0.8, shakeY * 0.8);
+
+            // --- GAMBAR PETIR (jika flash aktif) ---
+            if (lightningAlpha > 0.02) {
+                // Petir utama dari puncak awan ke bawah
+                const startX = cloudX + (Math.random() - 0.5) * 40;
+                const startY = cloudY - 120 + (Math.random() - 0.5) * 20;
+                const endX = cloudX + (Math.random() - 0.5) * 120;
+                const endY = cloudY + 180 + Math.random() * 40;
+
+                drawLightning(ctx, startX, startY, endX, endY, lightningAlpha, true);
+
+                // Petir kedua (cabang lebih kecil)
+                if (Math.random() > 0.4) {
+                    const sX = cloudX + (Math.random() - 0.5) * 60;
+                    const sY = cloudY - 90 + (Math.random() - 0.5) * 20;
+                    const eX = cloudX + (Math.random() - 0.5) * 150;
+                    const eY = cloudY + 160 + Math.random() * 30;
+                    drawLightning(ctx, sX, sY, eX, eY, lightningAlpha * 0.6, false);
+                }
+
+                // Siluet awan kena flash
+                ctx.save();
+                ctx.globalAlpha = lightningAlpha * 0.08;
+                ctx.fillStyle = '#aaccff';
+                ctx.fillRect(0, 0, W, H);
+                ctx.restore();
+            }
+
+            // --- Efek getar pada awan (glow getar) ---
+            if (shakeAmount > 0.5) {
+                ctx.save();
+                ctx.globalAlpha = 0.03 * shakeAmount;
+                ctx.shadowColor = 'rgba(100,150,255,0.1)';
+                ctx.shadowBlur = 60;
+                ctx.fillStyle = '#4466aa';
+                ctx.beginPath();
+                ctx.ellipse(cloudX, cloudY, 200, 140, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // --- Update shake (getar berangsur redam) ---
+            if (shakeAmount > 0) {
+                shakeAmount *= 0.995;
+                if (shakeAmount < 0.01) shakeAmount = 0;
+            } else {
+                // Getar minimal alami (seperti awan bergetar sendiri)
+                shakeAmount = 0.2 + Math.sin(time * 3.7) * 0.1 + Math.sin(time * 5.1 + 1.2) * 0.08;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // ============================================================
+        // 6. TRIGGER PETIR (klik atau random)
+        // ============================================================
+        function strikeLightning() {
+            lightningFlash = 1.0;
+            shakeAmount = 3.5 + Math.random() * 2;
+            // Efek getar langsung
+            setTimeout(() => {
+                shakeAmount = 2.0;
+            }, 100);
+            setTimeout(() => {
+                shakeAmount = 0.8;
+            }, 300);
+
+            // Petir kedua menyusul
+            setTimeout(() => {
+                if (Math.random() > 0.5) {
+                    lightningFlash = 0.7;
+                    shakeAmount = 2.5;
+                }
+            }, 200 + Math.random() * 300);
+        }
+
+        // ============================================================
+        // 7. EVENT LISTENER
+        // ============================================================
+        canvas.addEventListener('click', (e) => {
+            strikeLightning();
+            // Efek tambahan: getar di posisi klik (opsional)
+        });
+
+        // Petir random tiap 5-10 detik
+        setInterval(() => {
+            if (Math.random() > 0.5) {
+                strikeLightning();
+            }
+        }, 6000 + Math.random() * 5000);
+
+        // ============================================================
+        // 8. START ANIMASI
+        // ============================================================
+        animate();
+
+        // Trigger awal
+        setTimeout(strikeLightning, 800);
+
+        console.log('🌩️ Awan Cumulonimbus Bergetar - Siap!');
+        console.log('💡 Klik layar untuk petir!');
+    </script>
+</body>
+</html>
